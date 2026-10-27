@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FirstBrick Construction Estimator V2</title>
+<style>
+:root{--navy:#17212b;--brick:#9d4632;--bg:#f4f5f7;--card:#fff;--muted:#69727c;--line:#dfe3e8;--ok:#1f6b4f}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--navy)}
+.wrap{max-width:1100px;margin:auto;padding:24px}
+header{background:var(--navy);color:#fff;padding:22px;border-radius:14px;margin-bottom:18px}
+.brand{font-size:27px;font-weight:800;letter-spacing:.3px}.sub{opacity:.75;margin-top:5px}
+.progress{display:flex;gap:6px;overflow:auto;margin:16px 0}.step{padding:9px 12px;border:1px solid var(--line);background:#fff;border-radius:20px;white-space:nowrap;font-size:13px}.step.active{background:var(--brick);color:#fff;border-color:var(--brick)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+h2{font-size:20px;margin:0 0 14px} h3{font-size:16px;margin:18px 0 10px}.hint{color:var(--muted);font-size:13px;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.field label{display:block;font-size:12px;font-weight:700;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:11px;border:1px solid #cfd5db;border-radius:9px;font-size:15px;background:#fff}.field textarea{min-height:80px;resize:vertical}
+.item{border:1px solid var(--line);border-radius:11px;padding:14px;margin:10px 0;background:#fbfbfc}.itemgrid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:9px;align-items:end}.amount{font-weight:800;text-align:right;padding:11px 0}.btn{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}.primary{background:var(--brick);color:#fff}.secondary{background:#eef0f2;color:var(--navy)}.danger{background:#f7e8e4;color:#8a3020}.actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px}.summary{display:grid;grid-template-columns:1fr 1fr;gap:18px}.totalbox{background:var(--navy);color:#fff;border-radius:14px;padding:20px}.big{font-size:30px;font-weight:900;margin-top:5px}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:9px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}.right{text-align:right!important}.pill{display:inline-block;background:#f0e5e1;color:#743321;padding:5px 9px;border-radius:99px;font-size:12px;font-weight:700}.note{background:#fff7e6;border:1px solid #f1d99c;padding:12px;border-radius:10px;font-size:13px}
+.hide{display:none!important}
+@media(max-width:760px){.wrap{padding:12px}.grid,.summary{grid-template-columns:1fr}.itemgrid{grid-template-columns:1fr 1fr}.itemgrid .wide{grid-column:1/-1}.amount{text-align:left}}
+@media print{body{background:#fff}.no-print,header .sub,.progress,.actions,.btn{display:none!important}.wrap{max-width:none;padding:0}.card{border:0;padding:8px 0;margin:0 0 12px;break-inside:avoid}.totalbox{color:#fff}.print-title{display:block!important}}
+.print-title{display:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+<header><div class="brand">FIRSTBRICK</div><div class="sub">Construction Requirement & Cost Estimator · Offline V2</div></header>
+<div class="progress" id="progress"></div>
+<div id="content"></div>
+</div>
+<script>
+const prices={
+ cement:{PPC:410,'OPC 43':435,'OPC 53':455,PSC:395},
+ steel:{'Fe500':70,'Fe500D':74,'Fe550D':77},
+ sand:{'M-Sand':65,'River Sand':105,'P-Sand':78},
+ aggregate:{'20mm Aggregate':60,'10mm Aggregate':65},
+ brick:{'Red Clay Brick':11,'Fly Ash Brick':9,'AAC Block':55},
+ flooring:{'Basic Vitrified':75,'Standard Vitrified':105,'Premium Vitrified':165,'Granite':180,'Marble':260},
+ paint:{'Economy Emulsion':190,'Standard Emulsion':280,'Premium Emulsion':390,'Luxury Emulsion':520}
+};
+const packages={
+ Basic:{base:2050, cement:'PPC', steel:'Fe500', flooring:'Basic Vitrified', paint:'Economy Emulsion'},
+ Standard:{base:2500, cement:'OPC 53', steel:'Fe500D', flooring:'Standard Vitrified', paint:'Standard Emulsion'},
+ Premium:{base:3300, cement:'OPC 53', steel:'Fe500D', flooring:'Premium Vitrified', paint:'Premium Emulsion'},
+ Luxury:{base:4500, cement:'OPC 53', steel:'Fe550D', flooring:'Marble', paint:'Luxury Emulsion'}
+};
+let state={step:0,project:{},spec:{},items:[],commercial:{overhead:5,margin:8,contingency:3,gst:18}};
+
+const steps=['Project','Package','Structure','Materials','Finishing','Electrical','Plumbing','Other','Estimate'];
+function money(n){return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Math.max(0,n||0))}
+function num(v){v=parseFloat(v);return Number.isFinite(v)&&v>0?v:0}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function options(arr,sel){return arr.map(x=>`<option ${x===sel?'selected':''}>${esc(x)}</option>`).join('')}
+function progress(){document.getElementById('progress').innerHTML=steps.map((x,i)=>`<div class="step ${i===state.step?'active':''}">${i+1}. ${x}</div>`).join('')}
+function field(label,key,value='',type='text',extra=''){return `<div class="field"><label>${label}</label><input data-key="${key}" type="${type}" value="${esc(value)}" ${extra}></div>`}
+function select(label,key,arr,value){return `<div class="field"><label>${label}</label><select data-key="${key}">${options(arr,value)}</select></div>`}
+function capture(root=document){root.querySelectorAll('[data-key]').forEach(el=>{let k=el.dataset.key;if(k.includes('.')){let [a,b]=k.split('.');state[a][b]=el.value}else state.project[k]=el.value});}
+function nav(dir){capture();state.step=Math.max(0,Math.min(8,state.step+dir));render()}
+function addItem(category,name='',unit='Nos',qty=1,rate=0){state.items.push({category,name,unit,qty,rate});render()}
+function removeItem(i){state.items.splice(i,1);render()}
+function itemCards(category){let arr=state.items.map((x,i)=>({...x,i})).filter(x=>x.category===category);return arr.map(x=>`<div class="item"><div class="itemgrid">
+<div class="field wide"><label>Item / Specification</label><input data-item="${x.i}" data-prop="name" value="${esc(x.name)}" placeholder="e.g. Cement, AAC block, wiring"></div>
+<div class="field"><label>Quantity</label><input data-item="${x.i}" data-prop="qty" type="number" min="0" step="0.01" value="${x.qty}"></div>
+<div class="field"><label>Unit</label><input data-item="${x.i}" data-prop="unit" value="${esc(x.unit)}"></div>
+<div class="field"><label>Rate ₹</label><input data-item="${x.i}" data-prop="rate" type="number" min="0" step="0.01" value="${x.rate}"></div>
+<div><button class="btn danger" type="button" data-remove="${x.i}">Remove</button></div>
+</div><div class="amount">Amount: ${money(num(x.qty)*num(x.rate))}</div></div>`).join('')||'<div class="hint">No custom items yet. Add an item when you need one.</div>'}
+function packageDefaults(p){let d=packages[p];state.spec={...state.spec,package:p,cement:d.cement,steel:d.steel,flooring:d.flooring,paint:d.paint}}
+function render(){
+progress();let c=document.getElementById('content'),p=state.project,s=state.spec;
+if(state.step===0)c.innerHTML=`<div class="card"><h2>1. Client & Project Details</h2><div class="grid">
+${field('Client Name','client','')}${field('Mobile / Contact','mobile','')}${field('Project Name','projectName','')}
+${field('Project Location','location','')}${select('Building Type','buildingType',['Independent House','Villa','Apartment','Commercial','Office','Other'],p.buildingType||'Independent House')}${select('Number of Floors','floors',['G','G+1','G+2','G+3','G+4+'],p.floors||'G+1')}
+${field('Plot Area (sq.ft)','plotArea','', 'number','min="0"')}${field('Built-up Area (sq.ft)','builtup','', 'number','min="1"')}${field('Estimate Date','date',new Date().toISOString().slice(0,10),'date')}
+</div><h3>Scope</h3><div class="grid">${select('Construction Scope','scope',['Civil + Materials','Labour + Materials','Labour Only','Turnkey'],p.scope||'Turnkey')}${select('Location Factor','locationFactor',['Bengaluru / Metro','Tier-2 Karnataka','Other'],p.locationFactor||'Bengaluru / Metro')}</div></div>`;
+if(state.step===1)c.innerHTML=`<div class="card"><h2>2. Choose Quality Package</h2><p class="hint">The package changes the default specification set and benchmark ₹/sq.ft. You can override individual selections later.</p><div class="grid">${['Basic','Standard','Premium','Luxury'].map(k=>`<div class="item"><h3>${k}</h3><div class="pill">Benchmark ${money(packages[k].base)}/sq.ft</div><p class="hint">Cement: ${packages[k].cement}<br>Steel: ${packages[k].steel}<br>Flooring: ${packages[k].flooring}<br>Paint: ${packages[k].paint}</p><button class="btn ${s.package===k?'primary':'secondary'}" type="button" data-package="${k}">${s.package===k?'Selected':'Select Package'}</button></div>`).join('')}</div><div class="note">Benchmark rates are planning values, not quotations. Current Bengaluru published ranges put standard construction around ₹2,315–₹2,999/sq.ft, with quality and scope affecting the final figure. </div></div>`;
+if(state.step===2)c.innerHTML=`<div class="card"><h2>3. Structural & Civil Specifications</h2><div class="grid">
+${select('Foundation',['spec','foundation'].join('.'),['Isolated Footing','Combined Footing','Raft Foundation','Pile Foundation'],s.foundation||'Isolated Footing')}
+${select('Concrete Grade',['spec','concrete'].join('.'),['M20','M25','M30','M35'],s.concrete||'M25')}
+${select('Cement Type',['spec','cement'].join('.'),Object.keys(prices.cement),s.cement||'OPC 53')}
+${select('Cement Brand',['spec','cementBrand'].join('.'),['UltraTech','ACC','Ambuja','Dalmia','JSW','Ramco','Birla','Other'],s.cementBrand||'UltraTech')}
+${select('Steel Grade',['spec','steel'].join('.'),Object.keys(prices.steel),s.steel||'Fe500D')}
+${select('Wall Material',['spec','wall'].join('.'),Object.keys(prices.brick),s.wall||'AAC Block')}
+${select('Sand',['spec','sand'].join('.'),Object.keys(prices.sand),s.sand||'M-Sand')}
+${select('Waterproofing',['spec','waterproofing'].join('.'),['Basic','Standard','Premium','Terrace + Wet Areas'],s.waterproofing||'Standard')}
+</div><p class="hint">Default material rates are loaded automatically in the next step and remain editable.</p></div>`;
+if(state.step===3)c.innerHTML=`<div class="card"><h2>4. Core Materials & Quantities</h2><p class="hint">Rates are pre-filled from the selected specification/package. Change them to your actual dealer quotation.</p>${['Materials'].map(()=>itemCards('Materials')).join('')}<button class="btn secondary" type="button" data-add="Materials">＋ Add Material</button></div>
+<div class="card"><h3>Quick defaults</h3><div class="grid">${field('Cement rate ₹/bag','cementRate',prices.cement[s.cement||'OPC 53'],'number','min="0"')}${field('Steel rate ₹/kg','steelRate',prices.steel[s.steel||'Fe500D'],'number','min="0"')}${field('M-Sand rate ₹/cu.ft','sandRate',prices.sand[s.sand||'M-Sand'],'number','min="0"')}</div></div>`;
+if(state.step===4)c.innerHTML=`<div class="card"><h2>5. Finishing</h2><div class="grid">${select('Flooring',['spec','flooring'].join('.'),Object.keys(prices.flooring),s.flooring||'Standard Vitrified')}${select('Paint',['spec','paint'].join('.'),Object.keys(prices.paint),s.paint||'Standard Emulsion')}${select('Windows',['spec','windows'].join('.'),['Aluminium','UPVC','Premium UPVC','System Aluminium'],s.windows||'UPVC')}${select('Doors',['spec','doors'].join('.'),['Flush Door','Engineered Wood','Teak Main + Flush Internal','Premium Teak'],s.doors||'Engineered Wood')}${select('Kitchen',['spec','kitchen'].join('.'),['Basic','Standard','Premium','Luxury'],s.kitchen||'Standard')}${select('False Ceiling',['spec','ceiling'].join('.'),['None','Basic Gypsum','Standard Gypsum','Designer'],s.ceiling||'None')}</div>${itemCards('Finishing')}<button class="btn secondary" type="button" data-add="Finishing">＋ Add Finishing Item</button></div>`;
+if(state.step===5)c.innerHTML=`<div class="card"><h2>6. Electrical Requirements</h2><div class="grid">${select('Wiring Package',['spec','wiring'].join('.'),['Economy','Standard','Premium','Smart Home Ready'],s.wiring||'Standard')}${select('Switches & Sockets',['spec','switches'].join('.'),['Economy','Standard','Premium','Luxury'],s.switches||'Standard')}${select('Lighting',['spec','lighting'].join('.'),['Basic LED','Standard LED','Premium LED','Designer'],s.lighting||'Standard LED')}</div>${itemCards('Electrical')}<button class="btn secondary" type="button" data-add="Electrical">＋ Add Electrical Item</button></div>`;
+if(state.step===6)c.innerHTML=`<div class="card"><h2>7. Plumbing & Sanitary</h2><div class="grid">${select('Plumbing Package',['spec','plumbing'].join('.'),['Economy','Standard','Premium','Luxury'],s.plumbing||'Standard')}${select('Sanitaryware',['spec','sanitary'].join('.'),['Economy','Standard','Premium','Luxury'],s.sanitary||'Standard')}${select('CP / PVC Brand',['spec','pipes'].join('.'),['Supreme','Ashirvad','Astral','Finolex','Equivalent'],s.pipes||'Astral')}</div>${itemCards('Plumbing')}<button class="btn secondary" type="button" data-add="Plumbing">＋ Add Plumbing Item</button></div>`;
+if(state.step===7)c.innerHTML=`<div class="card"><h2>8. Labour, Equipment & Additional Works</h2>${itemCards('Other')}<button class="btn secondary" type="button" data-add="Other">＋ Add Other Cost</button><h3>Commercial Adjustments</h3><div class="grid">${field('Overhead %','commercial.overhead',state.commercial.overhead,'number','min="0" max="100" step="0.1"')}${field('Contractor Margin %','commercial.margin',state.commercial.margin,'number','min="0" max="100" step="0.1"')}${field('Contingency %','commercial.contingency',state.commercial.contingency,'number','min="0" max="100" step="0.1"')}${field('GST %','commercial.gst',state.commercial.gst,'number','min="0" max="100" step="0.1"')}</div><p class="hint">For a real quotation, verify whether GST applies to your contract structure and scope. This calculator treats the entered GST as an addition to the pre-tax estimate.</p></div>`;
+if(state.step===8){let built=num(p.builtup), pkg=packages[s.package||'Standard'], benchmark=built*pkg.base;let sub=state.items.reduce((a,x)=>a+num(x.qty)*num(x.rate),0);let baseline=benchmark;let used=Math.max(sub,baseline);let oh=used*num(state.commercial.overhead)/100,margin=(used+oh)*num(state.commercial.margin)/100,cont=(used+oh+margin)*num(state.commercial.contingency)/100,tax=(used+oh+margin+cont)*num(state.commercial.gst)/100,total=used+oh+margin+cont+tax;let note=sub?`Entered itemized costs: ${money(sub)}. The estimate uses the higher of your itemized subtotal and the package benchmark so the early estimate is not unrealistically low.`:`No itemized costs entered yet; the package benchmark is being used.`;c.innerHTML=`<div class="print-title"><h1>FIRSTBRICK — Construction Estimate</h1><p>${esc(p.client||'Client')} · ${esc(p.projectName||'Project')} · ${esc(p.location||'')}</p></div><div class="card"><h2>9. Final Estimate</h2><div class="summary"><div><table class="table"><tr><th>Basis</th><th class="right">Amount</th></tr><tr><td>Package benchmark (${esc(s.package||'Standard')})</td><td class="right">${money(benchmark)}</td></tr><tr><td>Itemized entered subtotal</td><td class="right">${money(sub)}</td></tr><tr><td>Working construction base</td><td class="right">${money(used)}</td></tr><tr><td>Overhead</td><td class="right">${money(oh)}</td></tr><tr><td>Contractor margin</td><td class="right">${money(margin)}</td></tr><tr><td>Contingency</td><td class="right">${money(cont)}</td></tr><tr><td>GST</td><td class="right">${money(tax)}</td></tr></table></div><div class="totalbox"><div>FINAL ESTIMATED PROJECT COST</div><div class="big">${money(total)}</div><p>${built?money(total/built)+' / sq.ft':'Enter built-up area to see ₹/sq.ft'}</p><p class="hint" style="color:#d9dde1">${note}</p></div></div></div><div class="card"><h3>Selected Requirements</h3><table class="table"><tr><th>Specification</th><th>Selection</th></tr>${Object.entries(s).filter(([k])=>k!=='package').map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table></div><div class="card"><h3>Cost Items</h3><table class="table"><tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th class="right">Rate</th><th class="right">Amount</th></tr>${state.items.map(x=>`<tr><td>${esc(x.category)}</td><td>${esc(x.name)}</td><td>${esc(x.qty)}</td><td>${esc(x.unit)}</td><td class="right">${money(num(x.rate))}</td><td class="right">${money(num(x.qty)*num(x.rate))}</td></tr>`).join('')||'<tr><td colspan="6">No itemized entries added.</td></tr>'}</table></div><div class="card"><div class="note"><b>Planning disclaimer:</b> Default rates are indicative Bengaluru/Karnataka planning values and must be replaced with current supplier/contractor quotations before signing a client agreement. Material prices vary by brand, quantity, delivery, taxes and location.</div></div>`}
+let actions=state.step===8?`<button class="btn secondary" type="button" data-back>← Back</button><div><button class="btn primary" type="button" data-print>Generate PDF / Print</button> <button class="btn secondary" type="button" data-reset>New Project</button></div>`:`<button class="btn secondary" type="button" ${state.step===0?'disabled':''} data-back>← Back</button><button class="btn primary" type="button" data-next>Next →</button>`;
+c.insertAdjacentHTML('beforeend',`<div class="actions no-print">${actions}</div>`);
+bind();
+}
+function bind(){
+document.querySelectorAll('[data-next]').forEach(b=>b.onclick=()=>nav(1));document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>nav(-1));
+document.querySelectorAll('[data-package]').forEach(b=>b.onclick=()=>{packageDefaults(b.dataset.package);render()});
+document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{let cat=b.dataset.add;let defaults=cat==='Materials'?{name:'Cement / Steel / Sand',unit:'Unit',qty:1,rate:0}:cat==='Finishing'?{name:'Flooring / Paint / Doors',unit:'sq.ft',qty:1,rate:0}:{name:'Custom requirement',unit:'Nos',qty:1,rate:0};addItem(cat,defaults.name,defaults.unit,defaults.qty,defaults.rate)});
+document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeItem(+b.dataset.remove));
+document.querySelectorAll('[data-item]').forEach(el=>el.oninput=()=>{let i=+el.dataset.item;state.items[i][el.dataset.prop]=el.value;render()});
+document.querySelectorAll('[data-key]').forEach(el=>el.onchange=()=>{capture();if(el.dataset.key==='spec.cement'){}});
+document.querySelectorAll('[data-print]').forEach(b=>b.onclick=()=>window.print());
+document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{state={step:0,project:{},spec:{package:'Standard',cement:'OPC 53',steel:'Fe500D'},items:[],commercial:{overhead:5,margin:8,contingency:3,gst:18}};render()});
+}
+state.spec.package='Standard';packageDefaults('Standard');render();
+</script>
+</body></html>
