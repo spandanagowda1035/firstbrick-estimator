@@ -38,10 +38,45 @@ const prices={
  paint:{'Economy Emulsion':190,'Standard Emulsion':280,'Premium Emulsion':390,'Luxury Emulsion':520}
 };
 const packages={
- Basic:{base:2050, cement:'PPC', steel:'Fe500', flooring:'Basic Vitrified', paint:'Economy Emulsion'},
- Standard:{base:2500, cement:'OPC 53', steel:'Fe500D', flooring:'Standard Vitrified', paint:'Standard Emulsion'},
- Premium:{base:3300, cement:'OPC 53', steel:'Fe500D', flooring:'Premium Vitrified', paint:'Premium Emulsion'},
- Luxury:{base:4500, cement:'OPC 53', steel:'Fe550D', flooring:'Marble', paint:'Luxury Emulsion'}
+Basic:{
+    base:2050,
+    cement:'PPC',
+    steelType:'TMT Reinforcement Bars',
+    steel:'Fe500',
+    steelBrand:'Not Specified',
+    flooring:'Basic Vitrified',
+    paint:'Economy Emulsion'
+},
+
+Standard:{
+    base:2500,
+    cement:'OPC 53',
+    steelType:'TMT Reinforcement Bars',
+    steel:'Fe500D',
+    steelBrand:'Not Specified',
+    flooring:'Standard Vitrified',
+    paint:'Standard Emulsion'
+},
+
+Premium:{
+    base:3300,
+    cement:'OPC 53',
+    steelType:'TMT Reinforcement Bars',
+    steel:'Fe500D',
+    steelBrand:'Not Specified',
+    flooring:'Premium Vitrified',
+    paint:'Premium Emulsion'
+},
+
+Luxury:{
+    base:4500,
+    cement:'OPC 53',
+    steelType:'TMT Reinforcement Bars',
+    steel:'Fe550D',
+    steelBrand:'Not Specified',
+    flooring:'Marble',
+    paint:'Luxury Emulsion'
+}
 };
 let state={step:0,project:{},spec:{},items:[],commercial:{overhead:5,margin:8,contingency:3,gst:18}};
 
@@ -64,7 +99,20 @@ function itemCards(category){let arr=state.items.map((x,i)=>({...x,i})).filter(x
 <div class="field"><label>Rate ₹</label><input data-item="${x.i}" data-prop="rate" type="number" min="0" step="0.01" value="${x.rate}"></div>
 <div><button class="btn danger" type="button" data-remove="${x.i}">Remove</button></div>
 </div><div class="amount">Amount: ${money(num(x.qty)*num(x.rate))}</div></div>`).join('')||'<div class="hint">No custom items yet. Add an item when you need one.</div>'}
-function packageDefaults(p){let d=packages[p];state.spec={...state.spec,package:p,cement:d.cement,steel:d.steel,flooring:d.flooring,paint:d.paint}}
+function packageDefaults(p){
+    let d=packages[p];
+
+    state.spec={
+        ...state.spec,
+        package:p,
+        cement:d.cement,
+        steelType:d.steelType,
+        steel:d.steel,
+        steelBrand:d.steelBrand,
+        flooring:d.flooring,
+        paint:d.paint
+    };
+}
 function render(){
 progress();let c=document.getElementById('content'),p=state.project,s=state.spec;
 if(state.step===0)c.innerHTML=`<div class="card"><h2>1. Client & Project Details</h2><div class="grid">
@@ -72,17 +120,174 @@ ${field('Client Name','client','')}${field('Mobile / Contact','mobile','')}${fie
 ${field('Project Location','location','')}${select('Building Type','buildingType',['Independent House','Villa','Apartment','Commercial','Office','Other'],p.buildingType||'Independent House')}${select('Number of Floors','floors',['G','G+1','G+2','G+3','G+4+'],p.floors||'G+1')}
 ${field('Plot Area (sq.ft)','plotArea','', 'number','min="0"')}${field('Built-up Area (sq.ft)','builtup','', 'number','min="1"')}${field('Estimate Date','date',new Date().toISOString().slice(0,10),'date')}
 </div><h3>Scope</h3><div class="grid">${select('Construction Scope','scope',['Civil + Materials','Labour + Materials','Labour Only','Turnkey'],p.scope||'Turnkey')}${select('Location Factor','locationFactor',['Bengaluru / Metro','Tier-2 Karnataka','Other'],p.locationFactor||'Bengaluru / Metro')}</div></div>`;
-if(state.step===1)c.innerHTML=`<div class="card"><h2>2. Choose Quality Package</h2><p class="hint">The package changes the default specification set and benchmark ₹/sq.ft. You can override individual selections later.</p><div class="grid">${['Basic','Standard','Premium','Luxury'].map(k=>`<div class="item"><h3>${k}</h3><div class="pill">Benchmark ${money(packages[k].base)}/sq.ft</div><p class="hint">Cement: ${packages[k].cement}<br>Steel: ${packages[k].steel}<br>Flooring: ${packages[k].flooring}<br>Paint: ${packages[k].paint}</p><button class="btn ${s.package===k?'primary':'secondary'}" type="button" data-package="${k}">${s.package===k?'Selected':'Select Package'}</button></div>`).join('')}</div><div class="note">Benchmark rates are planning values, not quotations. Current Bengaluru published ranges put standard construction around ₹2,315–₹2,999/sq.ft, with quality and scope affecting the final figure. </div></div>`;
-if(state.step===2)c.innerHTML=`<div class="card"><h2>3. Structural & Civil Specifications</h2><div class="grid">
-${select('Foundation',['spec','foundation'].join('.'),['Isolated Footing','Combined Footing','Raft Foundation','Pile Foundation'],s.foundation||'Isolated Footing')}
-${select('Concrete Grade',['spec','concrete'].join('.'),['M20','M25','M30','M35'],s.concrete||'M25')}
-${select('Cement Type',['spec','cement'].join('.'),Object.keys(prices.cement),s.cement||'OPC 53')}
-${select('Cement Brand',['spec','cementBrand'].join('.'),['UltraTech','ACC','Ambuja','Dalmia','JSW','Ramco','Birla','Other'],s.cementBrand||'UltraTech')}
-${select('Steel Grade',['spec','steel'].join('.'),Object.keys(prices.steel),s.steel||'Fe500D')}
-${select('Wall Material',['spec','wall'].join('.'),Object.keys(prices.brick),s.wall||'AAC Block')}
-${select('Sand',['spec','sand'].join('.'),Object.keys(prices.sand),s.sand||'M-Sand')}
-${select('Waterproofing',['spec','waterproofing'].join('.'),['Basic','Standard','Premium','Terrace + Wet Areas'],s.waterproofing||'Standard')}
-</div><p class="hint">Default material rates are loaded automatically in the next step and remain editable.</p></div>`;
+if(state.step===1)c.innerHTML=`
+<div class="card">
+
+    <h2>2. Choose Quality Package</h2>
+
+    <p class="hint">
+        The package changes the default specification set and
+        benchmark ₹/sq.ft. You can override individual selections later.
+    </p>
+
+    <div class="grid">
+
+        ${['Basic','Standard','Premium','Luxury'].map(k=>`
+
+            <div class="item">
+
+                <h3>${k}</h3>
+
+                <div class="pill">
+                    Benchmark ${money(packages[k].base)}/sq.ft
+                </div>
+
+                <p class="hint">
+                    Cement: ${packages[k].cement}<br>
+                    Steel Type: ${packages[k].steelType}<br>
+                    Steel Grade: ${packages[k].steel}<br>
+                    Steel Brand: ${packages[k].steelBrand}<br>
+                    Flooring: ${packages[k].flooring}<br>
+                    Paint: ${packages[k].paint}
+                </p>
+
+                <button
+                    class="btn ${s.package===k?'primary':'secondary'}"
+                    type="button"
+                    data-package="${k}"
+                >
+                    ${s.package===k?'Selected':'Select Package'}
+                </button>
+
+            </div>
+
+        `).join('')}
+
+    </div>
+
+    <div class="note">
+        Benchmark rates are planning values, not quotations.
+        Actual construction costs depend on quality, materials and scope.
+    </div>
+
+</div>`;
+if(state.step===2)c.innerHTML=`
+
+<div class="card">
+
+    <h2>3. Structural & Civil Specifications</h2>
+
+    <div class="grid">
+
+        ${select(
+            'Foundation',
+            'spec.foundation',
+            [
+                'Isolated Footing',
+                'Combined Footing',
+                'Raft Foundation',
+                'Pile Foundation'
+            ],
+            s.foundation||'Isolated Footing'
+        )}
+
+        ${select(
+            'Concrete Grade',
+            'spec.concrete',
+            ['M20','M25','M30','M35'],
+            s.concrete||'M25'
+        )}
+
+        ${select(
+            'Cement Type',
+            'spec.cement',
+            Object.keys(prices.cement),
+            s.cement||'OPC 53'
+        )}
+
+        ${select(
+            'Cement Brand',
+            'spec.cementBrand',
+            [
+                'UltraTech',
+                'ACC',
+                'Ambuja',
+                'Dalmia',
+                'JSW',
+                'Ramco',
+                'Birla',
+                'Other'
+            ],
+            s.cementBrand||'UltraTech'
+        )}
+
+        ${select(
+            'Steel Type',
+            'spec.steelType',
+            [
+                'TMT Reinforcement Bars',
+                'CRS TMT Reinforcement Bars',
+                'Other'
+            ],
+            s.steelType||'TMT Reinforcement Bars'
+        )}
+
+        ${select(
+            'Steel Grade',
+            'spec.steel',
+            Object.keys(prices.steel),
+            s.steel||'Fe500D'
+        )}
+
+        ${select(
+            'Steel Brand',
+            'spec.steelBrand',
+            [
+                'Not Specified',
+                'JSW Neosteel',
+                'Tata Tiscon',
+                'SAIL',
+                'Jindal Panther',
+                'Kamdhenu',
+                'Other'
+            ],
+            s.steelBrand||'Not Specified'
+        )}
+
+        ${select(
+            'Wall Material',
+            'spec.wall',
+            Object.keys(prices.brick),
+            s.wall||'AAC Block'
+        )}
+
+        ${select(
+            'Sand',
+            'spec.sand',
+            Object.keys(prices.sand),
+            s.sand||'M-Sand'
+        )}
+
+        ${select(
+            'Waterproofing',
+            'spec.waterproofing',
+            [
+                'Basic',
+                'Standard',
+                'Premium',
+                'Terrace + Wet Areas'
+            ],
+            s.waterproofing||'Standard'
+        )}
+
+    </div>
+
+    <p class="hint">
+        Default material rates are loaded automatically in the next step
+        and remain editable.
+    </p>
+
+</div>`;
 if(state.step===3)c.innerHTML=`<div class="card"><h2>4. Core Materials & Quantities</h2><p class="hint">Rates are pre-filled from the selected specification/package. Change them to your actual dealer quotation.</p>${['Materials'].map(()=>itemCards('Materials')).join('')}<button class="btn secondary" type="button" data-add="Materials">＋ Add Material</button></div>
 <div class="card"><h3>Quick defaults</h3><div class="grid">${field('Cement rate ₹/bag','cementRate',prices.cement[s.cement||'OPC 53'],'number','min="0"')}${field('Steel rate ₹/kg','steelRate',prices.steel[s.steel||'Fe500D'],'number','min="0"')}${field('M-Sand rate ₹/cu.ft','sandRate',prices.sand[s.sand||'M-Sand'],'number','min="0"')}</div></div>`;
 if(state.step===4)c.innerHTML=`<div class="card"><h2>5. Finishing</h2><div class="grid">${select('Flooring',['spec','flooring'].join('.'),Object.keys(prices.flooring),s.flooring||'Standard Vitrified')}${select('Paint',['spec','paint'].join('.'),Object.keys(prices.paint),s.paint||'Standard Emulsion')}${select('Windows',['spec','windows'].join('.'),['Aluminium','UPVC','Premium UPVC','System Aluminium'],s.windows||'UPVC')}${select('Doors',['spec','doors'].join('.'),['Flush Door','Engineered Wood','Teak Main + Flush Internal','Premium Teak'],s.doors||'Engineered Wood')}${select('Kitchen',['spec','kitchen'].join('.'),['Basic','Standard','Premium','Luxury'],s.kitchen||'Standard')}${select('False Ceiling',['spec','ceiling'].join('.'),['None','Basic Gypsum','Standard Gypsum','Designer'],s.ceiling||'None')}</div>${itemCards('Finishing')}<button class="btn secondary" type="button" data-add="Finishing">＋ Add Finishing Item</button></div>`;
@@ -102,7 +307,26 @@ document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>removeItem(+
 document.querySelectorAll('[data-item]').forEach(el=>el.oninput=()=>{let i=+el.dataset.item;state.items[i][el.dataset.prop]=el.value;render()});
 document.querySelectorAll('[data-key]').forEach(el=>el.onchange=()=>{capture();if(el.dataset.key==='spec.cement'){}});
 document.querySelectorAll('[data-print]').forEach(b=>b.onclick=()=>window.print());
-document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{state={step:0,project:{},spec:{package:'Standard',cement:'OPC 53',steel:'Fe500D'},items:[],commercial:{overhead:5,margin:8,contingency:3,gst:18}};render()});
+document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{
+
+    state={
+        step:0,
+        project:{},
+        spec:{},
+        items:[],
+        commercial:{
+            overhead:5,
+            margin:8,
+            contingency:3,
+            gst:18
+        }
+    };
+
+    packageDefaults('Standard');
+
+    render();
+
+});
 }
 state.spec.package='Standard';packageDefaults('Standard');render();
 </script>
